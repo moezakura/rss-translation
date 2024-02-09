@@ -95,7 +95,7 @@ async fn rss(req: HttpRequest) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let service_account_file = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").unwrap();
-    let project_id = std::env::var("GCLOUD_PROJECT").unwrap();
+    let project_id = std::env::var("GOOGLE_CLOUD_PROJECT").unwrap();
 
     let rss_provider = rtr::RssProvider::new();
     let translate_provider =
