@@ -1,9 +1,14 @@
 use actix_web::HttpRequest;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use feed_rs::model::{Text, FeedType};
 use serde::Deserialize;
 
 use rss_trans::rss as rtr;
 use rss_trans::translate;
+mod feed_generator;
+use feed_generator::feed_generator::FeedGenerator;
+use feed_generator::rss_generator::RssGenerator;
+use feed_generator::atom_generator::AtomGenerator;
 
 struct AppState {
     rss_provider: rtr::RssProvider,
@@ -52,19 +57,22 @@ async fn rss(req: HttpRequest) -> impl Responder {
     };
 
     // URLからRSSを取得
-    let channel = match rss_provider.get_rss_feeds(url).await {
-        Ok(channel) => channel,
+    let feeds = match rss_provider.get_rss_feeds(url).await {
+        Ok(feeds) => feeds,
         Err(e) => {
             return HttpResponse::InternalServerError().body(format!("Error: {}", e));
         }
     };
 
     // タイトルを翻訳
-    let target_titles = channel
-        .items
+    let target_titles: Vec<String> = feeds
+        .clone()
+        .entries
         .iter()
-        .filter_map(|item| item.title.clone())
+        .map(|entry| entry.title.clone().unwrap())
+        .map(|title_text| title_text.content)
         .collect();
+
     let translated_titles = match translate_provider.translate(target_titles, to).await {
         Ok(translated_titles) => translated_titles,
         Err(e) => {
@@ -73,23 +81,44 @@ async fn rss(req: HttpRequest) -> impl Responder {
     };
 
     // タイトルを翻訳済みに差し替える
-    let new_channel = channel.clone();
-    let new_items = new_channel
-        .items
+    let new_feeds = feeds.clone();
+    let new_items = new_feeds
+        .entries
         .iter()
         .zip(translated_titles.iter())
         .map(|(item, translated_title)| {
             let mut new_item = item.clone();
-            new_item.title = Some(translated_title.clone());
+            new_item.title = Some(Text {
+                content_type: mime::TEXT_PLAIN,
+                src: None,
+                content: translated_title.trim().to_string(),
+            });
             new_item
         })
         .collect();
-    let mut channel = new_channel.clone();
-    channel.items = new_items;
+    let mut feeds = new_feeds.clone();
+    feeds.entries = new_items;
 
-    // XMLとして返す
-    let new_content = channel.to_string();
-    HttpResponse::Ok().body(new_content)
+    // 元の形式に応じてRSSやAtomに変換してレスポンスとして返す
+    let generator: Option<Box<dyn FeedGenerator>> = match feeds.feed_type {
+        FeedType::RSS0 => Some(Box::new(RssGenerator::new())),
+        FeedType::RSS1 => Some(Box::new(RssGenerator::new())),
+        FeedType::RSS2 => Some(Box::new(RssGenerator::new())),
+        FeedType::Atom => Some(Box::new(AtomGenerator::new())),
+        FeedType::JSON => None,
+    };
+
+    if generator.is_none()  {
+        return HttpResponse::InternalServerError().body("Error: Unsupported feed type");
+    }
+    let unwraped_generator = generator.unwrap();
+
+    let feed_str = unwraped_generator.generate_feed(feeds);
+    let content_type = unwraped_generator.content_type();
+
+    HttpResponse::Ok()
+        .content_type(content_type)
+        .body(feed_str)
 }
 
 #[actix_web::main]

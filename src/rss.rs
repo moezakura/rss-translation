@@ -1,5 +1,5 @@
-use rss::Channel;
 use std::error::Error;
+use feed_rs::{model::Feed, parser};
 
 #[derive(Clone)]
 pub struct RssProvider;
@@ -9,11 +9,11 @@ impl RssProvider {
         RssProvider {}
     }
 
-    pub async fn get_rss_feeds(&self, url: String) -> Result<Channel, Box<dyn Error>> {
+    pub async fn get_rss_feeds(&self, url: String) -> Result<Feed, Box<dyn Error>> {
         let content = reqwest::get(url).await?.bytes().await?;
 
-        let channel = Channel::read_from(&content[..])?;
+        let feed = parser::parse(&content[..])?;
 
-        Ok(channel)
+        Ok(feed)
     }
 }
