@@ -36,3 +36,9 @@ docker run -p 7777:8080 \
 - GOOGLE_CLOUD_PROJECT
     - 先に有効化したCloudTranslationのProjectID
     - name_9999 のようなもの
+
+### 使い方
+
+下記のURLへアクセスすることで、翻訳後のRSS、Atomが取得できる。
+
+`https://example.com/rss?url=${FEED_URL}&to=ja-JP`
