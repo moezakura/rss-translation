@@ -7,6 +7,11 @@ struct Request {
     target: String,
 }
 
+pub struct TranslatResult {
+    pub translated: String,
+    pub raw_text: String,
+}
+
 #[derive(Serialize, Deserialize)]
 #[allow(non_snake_case)]
 struct Translated {
@@ -122,7 +127,7 @@ impl TranslateProvider {
         &mut self,
         target_strs: Vec<String>,
         to: String,
-    ) -> Result<Vec<String>, Box<dyn Error>> {
+    ) -> Result<Vec<TranslatResult>, Box<dyn Error>> {
         //
         let endpoint = "https://translation.googleapis.com/language/translate/v2";
 
@@ -130,7 +135,7 @@ impl TranslateProvider {
         let api_key = self.get_access_token().await?;
 
         let request_json = Request {
-            q: target_strs,
+            q: target_strs.clone(),
             target: to,
         };
 
@@ -146,13 +151,23 @@ impl TranslateProvider {
             .await?;
         let response_body = response.text().await?;
 
-
         let parsed_response: Response = serde_json::from_str(&response_body)?;
-        Ok(parsed_response
+        let translated: Vec<String> = parsed_response
             .data
             .translations
             .iter()
             .map(|t| t.translatedText.clone())
-            .collect())
+            .collect();
+
+        let result = target_strs
+            .iter()
+            .zip(translated.iter())
+            .map(|(raw, translated)| TranslatResult {
+                translated: translated.clone(),
+                raw_text: raw.clone(),
+            })
+            .collect();
+
+        Ok(result)
     }
 }
