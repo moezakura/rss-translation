@@ -42,3 +42,28 @@ docker run -p 7777:8080 \
 下記のURLへアクセスすることで、翻訳後のRSS、Atomが取得できる。
 
 `https://example.com/rss?url=${FEED_URL}&to=ja-JP`
+
+### 環境変数
+
+- CACHE_MODE
+    - キャッシュモード
+    - webdav
+        - WebDavによるキャッシュ
+    - s3
+        - S3によるキャッシュ
+- WEB_DAV_URL
+    - キャッシュで利用するWebDavのURL
+- WEB_DAV_USER_ID
+    - キャッシュで利用するWebDavのユーザーID
+- WEB_DAV_USER_PASSWORD
+    - キャッシュで利用するWebDavのパスワード
+- S3_ENDPOINT_URL
+    - キャッシュで利用するS3のエンドポイントURL
+- S3_BUCKET_NAME
+    - キャッシュで利用するS3のバケット名
+- S3_REGION
+    - キャッシュで利用するS3のリージョン
+- AWS_ACCESS_KEY_ID
+    - キャッシュで利用するS3のアクセスキー
+- AWS_SECRET_ACCESS_KEY
+    - キャッシュで利用するS3のシークレットキー
