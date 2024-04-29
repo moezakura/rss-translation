@@ -1,5 +1,5 @@
 use actix_web::HttpRequest;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder};
 use feed_rs::model::{FeedType, Text};
 use serde::Deserialize;
 
@@ -60,7 +60,8 @@ async fn rss(req: HttpRequest) -> impl Responder {
     let req_query: RssReqQuery = match web::Query::<RssReqQuery>::from_query(req.query_string()) {
         Ok(query) => query.into_inner(),
         Err(e) => {
-            return HttpResponse::InternalServerError().body(format!("Error (failed to get queries): {}", e));
+            return HttpResponse::InternalServerError()
+                .body(format!("Error (failed to get queries): {}", e));
         }
     };
 
@@ -77,7 +78,8 @@ async fn rss(req: HttpRequest) -> impl Responder {
     let feeds = match rss_provider.get_rss_feeds(url).await {
         Ok(feeds) => feeds,
         Err(e) => {
-            return HttpResponse::InternalServerError().body(format!("Error (failed to get rss-feed uri): {}", e));
+            return HttpResponse::InternalServerError()
+                .body(format!("Error (failed to get rss-feed uri): {}", e));
         }
     };
 
@@ -146,7 +148,8 @@ async fn rss(req: HttpRequest) -> impl Responder {
         {
             Ok(translated) => translated,
             Err(e) => {
-                return HttpResponse::InternalServerError().body(format!("Error (failed to translation): {}", e));
+                return HttpResponse::InternalServerError()
+                    .body(format!("Error (failed to translation): {}", e));
             }
         }
     } else {
@@ -258,6 +261,8 @@ async fn main() -> std::io::Result<()> {
     let aws_access_key = std::env::var("AWS_ACCESS_KEY_ID");
     let aws_secret_key = std::env::var("AWS_SECRET_ACCESS_KEY");
 
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
     let rss_provider = rtr::RssProvider::new();
     let translate_provider =
         translate::TranslateProvider::new(translate::TranslateProviderInitConfig {
@@ -265,7 +270,7 @@ async fn main() -> std::io::Result<()> {
             service_account_json: service_account_file,
         });
 
-    let translated_cache_provider: Option<Box<dyn CacheProvider>> = match cache_mode{
+    let translated_cache_provider: Option<Box<dyn CacheProvider>> = match cache_mode {
         Ok(cache_mode) => match cache_mode.as_str() {
             "webdav" => Some(Box::new(WebDavCacheProvider::new(
                 WebDavCacheProviderOptions {
@@ -294,6 +299,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::new())
             .app_data(app_state.clone())
             .service(index)
             .service(rss)
