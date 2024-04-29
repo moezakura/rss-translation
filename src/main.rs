@@ -299,7 +299,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::new())
+            .wrap(Logger::default())
             .app_data(app_state.clone())
             .service(index)
             .service(rss)
