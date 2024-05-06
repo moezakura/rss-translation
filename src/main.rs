@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use actix_web::HttpRequest;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder};
 use cache_provider::sql::{SqlCacheProvider, SqlCacheProviderOptions};
@@ -14,8 +16,7 @@ mod cache_provider;
 use cache_provider::provider::CacheProvider;
 use cache_provider::s3::{S3CacheProvider, S3CacheProviderOptions};
 use cache_provider::webdav::{WebDavCacheProvider, WebDavCacheProviderOptions};
-use sqlx::{ConnectOptions, any::AnyConnectOptions};
-use url::Url;
+use sqlx::any::install_default_drivers;
 
 struct AppState {
     rss_provider: rtr::RssProvider,
@@ -123,6 +124,7 @@ async fn rss(req: HttpRequest) -> impl Responder {
                 .body(format!("Error (failed to get title from cache): {}", err));
         }
         let cached_title = cached_title.unwrap();
+        println!("cached_title: {:?}", cached_title);
         match cached_title {
             Some(title) => translated_titles.push(TranslateTitle {
                 raw: target_title.raw.clone(),
@@ -292,35 +294,21 @@ async fn main() -> std::io::Result<()> {
                 endpoint_url: s3_endpoint_url.unwrap(),
             }))),
             "rdbms" => {
-                let database_url = database_url.unwrap();
-        
-                let connect_url = Url::parse(&database_url);
-                if connect_url.is_err() {
-                    panic!(
-                        "Failed to parse connection string: {:?}",
-                        connect_url.unwrap_err()
-                    );
-                }
-                let connect_url = connect_url.unwrap();
-        
-                let connect_options = AnyConnectOptions::from_url(&connect_url);
-                if connect_options.is_err() {
-                    panic!(
-                        "Failed to parse connection string: {:?}",
-                        connect_options.unwrap_err()
-                    );
-                }
-        
-                let pool = connect_options.unwrap().connect().await;
-                if pool.is_err() {
-                    panic!("Failed to connect to database: {:?}", pool.unwrap_err());
-                }
-                let pool = pool.unwrap();
+                let database_uri = database_url.unwrap();
+
+                install_default_drivers();
+
+                let connection = sqlx::any::AnyPoolOptions::new()
+                    .max_connections(10)
+                    .max_lifetime(Duration::from_millis(50))
+                    .connect(&database_uri)
+                    .await
+                    .unwrap();
 
                 Some(Box::new(SqlCacheProvider::new(SqlCacheProviderOptions {
-                    connection_pool: pool,
+                    connection_pool: connection,
                 })))
-            },
+            }
             _ => None,
         },
         Err(_) => None,
