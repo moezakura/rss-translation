@@ -1,5 +1,6 @@
 use actix_web::HttpRequest;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder};
+use cache_provider::sql::{SqlCacheProvider, SqlCacheProviderOptions};
 use feed_rs::model::{FeedType, Text};
 use serde::Deserialize;
 
@@ -13,6 +14,8 @@ mod cache_provider;
 use cache_provider::provider::CacheProvider;
 use cache_provider::s3::{S3CacheProvider, S3CacheProviderOptions};
 use cache_provider::webdav::{WebDavCacheProvider, WebDavCacheProviderOptions};
+use sqlx::{ConnectOptions, any::AnyConnectOptions};
+use url::Url;
 
 struct AppState {
     rss_provider: rtr::RssProvider,
@@ -261,6 +264,8 @@ async fn main() -> std::io::Result<()> {
     let aws_access_key = std::env::var("AWS_ACCESS_KEY_ID");
     let aws_secret_key = std::env::var("AWS_SECRET_ACCESS_KEY");
 
+    let database_url = std::env::var("DATABASE_URL");
+
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let rss_provider = rtr::RssProvider::new();
@@ -286,6 +291,36 @@ async fn main() -> std::io::Result<()> {
                 bucket_name: s3_bucket_name.unwrap(),
                 endpoint_url: s3_endpoint_url.unwrap(),
             }))),
+            "rdbms" => {
+                let database_url = database_url.unwrap();
+        
+                let connect_url = Url::parse(&database_url);
+                if connect_url.is_err() {
+                    panic!(
+                        "Failed to parse connection string: {:?}",
+                        connect_url.unwrap_err()
+                    );
+                }
+                let connect_url = connect_url.unwrap();
+        
+                let connect_options = AnyConnectOptions::from_url(&connect_url);
+                if connect_options.is_err() {
+                    panic!(
+                        "Failed to parse connection string: {:?}",
+                        connect_options.unwrap_err()
+                    );
+                }
+        
+                let pool = connect_options.unwrap().connect().await;
+                if pool.is_err() {
+                    panic!("Failed to connect to database: {:?}", pool.unwrap_err());
+                }
+                let pool = pool.unwrap();
+
+                Some(Box::new(SqlCacheProvider::new(SqlCacheProviderOptions {
+                    connection_pool: pool,
+                })))
+            },
             _ => None,
         },
         Err(_) => None,

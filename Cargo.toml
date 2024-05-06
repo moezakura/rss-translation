@@ -26,3 +26,4 @@ sha2 = "0.10.8"
 tokio = { version = "1.36.0", features = ["full"] }
 url = "2.5.0"
 env_logger = "0.11.3"
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "any"] }
