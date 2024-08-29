@@ -296,11 +296,14 @@ async fn main() -> std::io::Result<()> {
             "rdbms" => {
                 let database_uri = database_url.unwrap();
 
+                println!("database_uri: {}", database_uri);
+
                 install_default_drivers();
 
                 let connection = sqlx::any::AnyPoolOptions::new()
-                    .max_connections(10)
+                    .max_connections(200)
                     .max_lifetime(Duration::from_millis(50))
+                    .idle_timeout(Some(Duration::from_millis(50)))
                     .connect(&database_uri)
                     .await
                     .unwrap();
