@@ -19,7 +19,13 @@ impl RssProvider {
 
     pub async fn get_rss_feeds(&self, url: String) -> Result<Feed, Box<dyn Error>> {
         let client = self.client.clone();
-        let content = client.get(url.clone()).send().await?.bytes().await?;
+        let content = client
+            .get(url.clone())
+            .header(reqwest::header::DNT, "1")
+            .send()
+            .await?
+            .bytes()
+            .await?;
 
         let feed = parser::parse(&content[..])?;
 
