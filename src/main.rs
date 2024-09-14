@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use rss_trans::rss as rtr;
 use rss_trans::translate;
+use rss_trans::html_data;
 mod feed_generator;
 use feed_generator::atom_generator::AtomGenerator;
 use feed_generator::feed_generator::FeedGenerator;
@@ -26,7 +27,8 @@ struct AppState {
 
 #[get("/")]
 async fn index() -> impl Responder {
-    HttpResponse::Ok().body("index")
+    // HTMLを返す
+    HttpResponse::Ok().body(html_data::HTMLIndexData)
 }
 
 #[derive(Deserialize)]
