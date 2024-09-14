@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use serde_json::json;
 
 #[derive(Serialize, Deserialize)]
 struct Request {
@@ -128,46 +129,53 @@ impl TranslateProvider {
         target_strs: Vec<String>,
         to: String,
     ) -> Result<Vec<TranslatResult>, Box<dyn Error>> {
-        //
-        let endpoint = "https://translation.googleapis.com/language/translate/v2";
-
+        const BATCH_SIZE: usize = 100;
+        let endpoint: &str = "https://translation.googleapis.com/language/translate/v2";
         let project_id = &self.project_id.clone();
         let api_key = self.get_access_token().await?;
-
-        let request_json = Request {
-            q: target_strs.clone(),
-            target: to,
-        };
-
         let client = reqwest::Client::new();
-
-        let response = client
-            .post(endpoint)
-            .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("x-goog-user-project", project_id)
-            .body(serde_json::to_string(&request_json)?)
-            .send()
-            .await?;
-        let response_body = response.text().await?;
-
-        let parsed_response: Response = serde_json::from_str(&response_body)?;
-        let translated: Vec<String> = parsed_response
-            .data
-            .translations
-            .iter()
-            .map(|t| t.translatedText.clone())
-            .collect();
-
-        let result = target_strs
-            .iter()
-            .zip(translated.iter())
-            .map(|(raw, translated)| TranslatResult {
-                translated: translated.clone(),
-                raw_text: raw.clone(),
-            })
-            .collect();
-
-        Ok(result)
+    
+        let batches = target_strs.chunks(BATCH_SIZE);
+        let mut all_results = Vec::new();
+    
+        for batch in batches {
+            let request_json = json!({
+                "q": batch,
+                "target": to
+            });
+    
+            let response = client
+                .post(endpoint)
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("x-goog-user-project", project_id)
+                .body(serde_json::to_string(&request_json)?)
+                .send()
+                .await?;
+    
+            let response_body = response.text().await?;
+            println!("{}", response_body);  // response bodyを出力
+    
+            let parsed_response: Response = serde_json::from_str(&response_body)?;
+            let translated: Vec<String> = parsed_response
+                .data
+                .translations
+                .iter()
+                .map(|t| t.translatedText.clone())
+                .collect();
+    
+            let batch_results: Vec<TranslatResult> = batch
+                .iter()
+                .zip(translated.iter())
+                .map(|(raw, translated)| TranslatResult {
+                    translated: translated.clone(),
+                    raw_text: raw.clone(),
+                })
+                .collect();
+    
+            all_results.extend(batch_results);
+        }
+    
+        Ok(all_results)
     }
 }
